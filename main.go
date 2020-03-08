@@ -12,32 +12,52 @@ var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func main() {
 	wg := &sync.WaitGroup{}
+	m := &sync.RWMutex{}
+
+	cacheCh := make(chan Book)
+	DBCh := make(chan Book)
+
 	for i:=0; i < 10; i++ {
 		id := rnd.Intn(10) + 1
 		wg.Add(2)
-		go func (id int, wg *sync.WaitGroup)  {
-			if b, ok := queryCache(id); ok {
+		go func (id int, wg *sync.WaitGroup, m *sync.RWMutex, ch chan<- Book)  {
+			if b, ok := queryCache(id, m); ok {
+				ch <- b
+			}
+			wg.Done()
+		}(id, wg, m, cacheCh)
+
+		go func (id int, wg *sync.WaitGroup, m *sync.RWMutex, ch chan<- Book)  {
+			if b, ok := queryDatabase(id); ok {
+				m.Lock()
+				cache[id] = b
+				m.Unlock()
+				ch <- b
+			}
+			wg.Done()
+		}(id, wg, m, DBCh)
+
+		go func (cacheCh, dbCh <-chan Book)  {
+			select {
+			case b := <-cacheCh:
 				fmt.Println("From cache")
 				fmt.Println(b)
-			}
-			wg.Done()
-		}(id, wg)
-
-		go func (id int, wg *sync.WaitGroup)  {
-			if b, ok := queryDatabase(id); ok {
-				fmt.Println("From database")
+				<-dbCh
+			case b := <- dbCh:
+				fmt.Println("From DB")
 				fmt.Println(b)
 			}
-			wg.Done()
-		}(id, wg)
+		}(cacheCh, DBCh)
 
-		// time.Sleep(150 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 	wg.Wait()
 }
 
-func queryCache(id int) (b Book, ok bool) {
+func queryCache(id int, m *sync.RWMutex) (b Book, ok bool) {
+	m.RLock()
 	b, ok = cache[id]
+	m.RUnlock()
 	return
 }
 
@@ -45,7 +65,7 @@ func queryDatabase(id int) (Book, bool) {
 	time.Sleep(100 * time.Millisecond)
 	for _, b := range books {
 		if b.ID == id {
-			cache[id] = b
+
 			return b, true
 		}
 	}
