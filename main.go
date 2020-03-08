@@ -23,6 +23,7 @@ func queryDatabase(id int) (Book, bool) {
 	time.Sleep(100 * time.Millisecond)
 	for _, b := range books {
 		if b.ID == id {
+			cache[id] = b
 			return b, true
 		}
 	}
