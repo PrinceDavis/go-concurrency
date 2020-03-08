@@ -1,21 +1,35 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
 
-var cache = map[int]Book
+var cache = map[int]Book{}
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func main() {
 	for i:=0; i < 10; i++ {
-		id = rnd.Intn(10) + 1
+		id := rnd.Intn(10) + 1
+		if b, ok := queryCache(id); ok {
+			fmt.Println("From cache")
+			fmt.Println(b)
+			continue
+		}
+		if b, ok := queryDatabase(id); ok {
+			fmt.Println("From database")
+			fmt.Println(b)
+			continue
+		}
+
+		fmt.Printf("Book not found with id: '%v'", id)
+		time.Sleep(150 * time.Millisecond)
 	}
 }
 
 func queryCache(id int) (b Book, ok bool) {
-	b, ok := cache[id]
+	b, ok = cache[id]
 	return
 }
 
